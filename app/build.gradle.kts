@@ -26,6 +26,6 @@ dependencies {
     implementation("com.meta.wearable:mwdat-core:1.0.0")
     implementation("com.meta.wearable:mwdat-camera:1.0.0")
     implementation("com.meta.wearable:mwdat-mockdevice:1.0.0")
-    implementation("io.github.thibaultbee.srtdroid:srtdroid-core:1.10.1")
-    implementation("io.github.thibaultbee.srtdroid:srtdroid-ktx:1.10.1")
+    implementation("io.github.thibaultbee.srtdroid:srtdroid-core:1.9.5")
+    implementation("io.github.thibaultbee.srtdroid:srtdroid-ktx:1.9.5")
 }

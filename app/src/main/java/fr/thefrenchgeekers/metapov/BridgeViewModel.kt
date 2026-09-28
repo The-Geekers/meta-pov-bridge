@@ -30,52 +30,190 @@ data class BridgeState(
     val live: Boolean = false,
 )
 
-class BridgeViewModel(app:Application):AndroidViewModel(app){
-    private val _state=MutableStateFlow(BridgeState()); val state=_state.asStateFlow()
-    private var session:DeviceSession?=null; private var camera:Camera?=null; private var frameJob:Job?=null
-    private val sender=SrtSender(); private val mux=MpegTsMuxer(); private var cfg=SrtConfig("",9000)
+class BridgeViewModel(app: Application) : AndroidViewModel(app) {
+    private val _state = MutableStateFlow(BridgeState())
+    val state = _state.asStateFlow()
 
-    init { Wearables.initialize(app) }
-    fun register(activity:android.app.Activity)=Wearables.startRegistration(activity)
+    private var session: DeviceSession? = null
+    private var camera: Camera? = null
+    private var frameJob: Job? = null
 
-    fun start(host:String, port:Int, streamId:String, pass:String, latency:Int, requestPermission: suspend (Permission) -> PermissionStatus){
-        if(_state.value.live)return; cfg=SrtConfig(host,port,streamId,pass,latency)
+    private val sender = SrtSender()
+    private val mux = MpegTsMuxer()
+    private var cfg = SrtConfig("", 9000)
+
+    init {
+        Wearables.initialize(app)
+    }
+
+    fun register(activity: android.app.Activity) = Wearables.startRegistration(activity)
+
+    fun start(
+        host: String,
+        port: Int,
+        streamId: String,
+        pass: String,
+        latency: Int,
+        requestPermission: suspend (Permission) -> PermissionStatus,
+    ) {
+        if (_state.value.live) return
+        cfg = SrtConfig(host, port, streamId, pass, latency)
+
         viewModelScope.launch {
-            try{
-                val perm=Wearables.checkPermissionStatus(Permission.CAMERA).getOrElse{throw IllegalStateException(it.message)}
-                if(perm!=PermissionStatus.Granted){ val p=requestPermission(Permission.CAMERA); if(p!=PermissionStatus.Granted) error("Camera permission denied") }
-                sender.connect(cfg); _state.update{it.copy(srt="CONNECTED",live=true,error=null)}; startDat()
-            }catch(t:Throwable){ sender.close(); _state.update{it.copy(error=t.message?:t.toString(),srt="ERROR",live=false)} }
+            try {
+                val perm = Wearables.checkPermissionStatus(Permission.CAMERA)
+                    .getOrElse { throw IllegalStateException(it.description) }
+
+                if (perm != PermissionStatus.Granted) {
+                    val requested = requestPermission(Permission.CAMERA)
+                    if (requested != PermissionStatus.Granted) {
+                        error("Camera permission denied")
+                    }
+                }
+
+                sender.connect(cfg)
+                _state.update { it.copy(srt = "CONNECTED", live = true, error = null) }
+                startDat()
+            } catch (t: Throwable) {
+                sender.close()
+                _state.update {
+                    it.copy(
+                        error = t.message ?: t.toString(),
+                        srt = "ERROR",
+                        live = false,
+                    )
+                }
+            }
         }
     }
 
-    private fun startDat(){
-        Wearables.createSession(AutoDeviceSelector()).fold(onSuccess={s->
-            session=s; _state.update{it.copy(dat="CONNECTING")}
-            viewModelScope.launch { s.errors.collect{e->_state.update{it.copy(error=e.description)} } }
-            viewModelScope.launch { s.state.collect{st->
-                _state.update{it.copy(dat=st.toString())}
-                if(st==DeviceSessionState.STARTED && camera==null) attachCamera(s)
-            }}
-            s.start()
-        },onFailure={e,_-> _state.update{it.copy(error=e.description,live=false)} })
+    private fun startDat() {
+        Wearables.createSession(AutoDeviceSelector()).fold(
+            onSuccess = { created ->
+                session = created
+                _state.update { it.copy(dat = "CONNECTING") }
+
+                viewModelScope.launch {
+                    created.errors.collect { error ->
+                        _state.update { it.copy(error = error.description) }
+                    }
+                }
+
+                viewModelScope.launch {
+                    created.state.collect { state ->
+                        _state.update { it.copy(dat = state.toString()) }
+                        if (state == DeviceSessionState.STARTED && camera == null) {
+                            attachCamera(created)
+                        }
+                    }
+                }
+
+                created.start()
+            },
+            onFailure = { error, _ ->
+                sender.close()
+                _state.update {
+                    it.copy(
+                        error = error.description,
+                        srt = "ERROR",
+                        live = false,
+                    )
+                }
+            },
+        )
     }
 
-    private fun attachCamera(s:DeviceSession){
-        s.addCamera(StreamConfiguration(videoQuality=VideoQuality.HIGH,frameRate=30,compressVideo=true)).fold(onSuccess={c->
-            camera=c
-            viewModelScope.launch { c.stream.state.collect{v->_state.update{it.copy(video=v.toString())}} }
-            viewModelScope.launch { c.stream.errorStream.collect{e->_state.update{it.copy(error=e.description)}} }
-            frameJob=viewModelScope.launch(Dispatchers.Default){ c.stream.videoStream.collect{f->
-                if(!f.isCompressed)return@collect
-                val bb=f.buffer.duplicate(); val raw=ByteArray(bb.remaining()); bb.get(raw)
-                val ts=mux.muxHevc(raw,f.presentationTimeUs)
-                try{ sender.send(ts); _state.update{it.copy(frames=it.frames+1,bytes=it.bytes+ts.size)} }catch(t:Throwable){_state.update{it.copy(error=t.message,srt="ERROR")}}
-            }}
-            viewModelScope.launch { c.stream.start().onFailure{e,_-> _state.update{it.copy(error=e.description)} } }
-        },onFailure={e,_-> _state.update{it.copy(error=e.description)} })
+    private fun attachCamera(activeSession: DeviceSession) {
+        StreamingService.start(getApplication())
+
+        activeSession.addCamera(
+            StreamConfiguration(
+                videoQuality = VideoQuality.HIGH,
+                frameRate = 30,
+                compressVideo = true,
+            ),
+        ).fold(
+            onSuccess = { addedCamera ->
+                camera = addedCamera
+
+                viewModelScope.launch {
+                    addedCamera.stream.state.collect { streamState ->
+                        _state.update { it.copy(video = streamState.toString()) }
+                    }
+                }
+
+                viewModelScope.launch {
+                    addedCamera.stream.errorStream.collect { error ->
+                        _state.update { it.copy(error = error.description) }
+                    }
+                }
+
+                frameJob = viewModelScope.launch(Dispatchers.Default) {
+                    addedCamera.stream.videoStream.collect { frame ->
+                        if (!frame.isCompressed) return@collect
+
+                        val buffer = frame.buffer.duplicate()
+                        val raw = ByteArray(buffer.remaining())
+                        buffer.get(raw)
+
+                        val ts = mux.muxHevc(raw, frame.presentationTimeUs)
+                        try {
+                            sender.send(ts)
+                            _state.update {
+                                it.copy(
+                                    frames = it.frames + 1,
+                                    bytes = it.bytes + ts.size,
+                                )
+                            }
+                        } catch (t: Throwable) {
+                            _state.update {
+                                it.copy(
+                                    error = t.message ?: t.toString(),
+                                    srt = "ERROR",
+                                )
+                            }
+                        }
+                    }
+                }
+
+                viewModelScope.launch {
+                    addedCamera.stream.start().onFailure { error, _ ->
+                        _state.update { it.copy(error = error.description) }
+                        StreamingService.stop(getApplication())
+                    }
+                }
+            },
+            onFailure = { error, _ ->
+                StreamingService.stop(getApplication())
+                sender.close()
+                _state.update {
+                    it.copy(
+                        error = error.description,
+                        srt = "ERROR",
+                        live = false,
+                    )
+                }
+            },
+        )
     }
 
-    fun stop(){ frameJob?.cancel();frameJob=null;camera?.stop();camera=null;session?.stop();session=null;sender.close();_state.value=BridgeState() }
-    override fun onCleared(){stop();super.onCleared()}
+    fun stop() {
+        frameJob?.cancel()
+        frameJob = null
+
+        camera?.stop()
+        camera = null
+
+        session?.stop()
+        session = null
+
+        StreamingService.stop(getApplication())
+        sender.close()
+        _state.value = BridgeState()
+    }
+
+    override fun onCleared() {
+        stop()
+        super.onCleared()
+    }
 }

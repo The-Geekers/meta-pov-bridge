@@ -13,6 +13,11 @@ import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.core.types.Permission
 import com.meta.wearable.dat.core.types.PermissionStatus
+import com.meta.wearable.dat.mockdevice.MockDeviceKit
+import com.meta.wearable.dat.mockdevice.api.GlassesModel
+import com.meta.wearable.dat.mockdevice.api.MockDeviceKitConfig
+import com.meta.wearable.dat.mockdevice.api.MockGlasses
+import com.meta.wearable.dat.mockdevice.api.camera.CameraFacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +33,7 @@ data class BridgeState(
     val bytes: Long = 0,
     val error: String? = null,
     val live: Boolean = false,
+    val mockEnabled: Boolean = false,
 )
 
 class BridgeViewModel(app: Application) : AndroidViewModel(app) {
@@ -42,11 +48,99 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
     private val mux = MpegTsMuxer()
     private var cfg = SrtConfig("", 9000)
 
+    private val mockDeviceKit = MockDeviceKit.getInstance(app.applicationContext)
+    private var mockGlasses: MockGlasses? = null
+    private var mockSetupInProgress = false
+
     init {
         Wearables.initialize(app)
     }
 
     fun register(activity: android.app.Activity) = Wearables.startRegistration(activity)
+
+    fun enableMockPhoneCamera() {
+        if (_state.value.live || mockSetupInProgress) return
+        if (mockGlasses != null) {
+            _state.update {
+                it.copy(
+                    dat = "MOCK READY",
+                    mockEnabled = true,
+                    error = null,
+                )
+            }
+            return
+        }
+
+        mockSetupInProgress = true
+        _state.update { it.copy(dat = "MOCK SETUP", error = null) }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                if (!mockDeviceKit.isEnabled) {
+                    mockDeviceKit.enable(
+                        MockDeviceKitConfig(
+                            initiallyRegistered = true,
+                            initialPermissionsGranted = true,
+                        ),
+                    )
+                }
+
+                mockDeviceKit.pairGlasses(GlassesModel.RAYBAN_META).fold(
+                    onSuccess = { glasses ->
+                        mockGlasses = glasses
+                        glasses.powerOn()
+                        glasses.unfold()
+                        glasses.don()
+                        glasses.services.camera.setCameraFeed(CameraFacing.BACK)
+
+                        _state.update {
+                            it.copy(
+                                dat = "MOCK READY",
+                                mockEnabled = true,
+                                error = null,
+                            )
+                        }
+                    },
+                    onFailure = { datError, _ ->
+                        _state.update {
+                            it.copy(
+                                dat = "MOCK ERROR",
+                                error = datError.description,
+                                mockEnabled = false,
+                            )
+                        }
+                    },
+                )
+            } catch (t: Throwable) {
+                _state.update {
+                    it.copy(
+                        dat = "MOCK ERROR",
+                        error = t.message ?: t.toString(),
+                        mockEnabled = false,
+                    )
+                }
+            } finally {
+                mockSetupInProgress = false
+            }
+        }
+    }
+
+    fun disableMock() {
+        if (_state.value.live) return
+
+        viewModelScope.launch(Dispatchers.Default) {
+            runCatching {
+                mockGlasses?.let { mockDeviceKit.unpairDevice(it) }
+                mockGlasses = null
+                mockDeviceKit.disable()
+            }.onFailure { failure ->
+                _state.update { it.copy(error = failure.message ?: failure.toString()) }
+                return@launch
+            }
+
+            _state.value = BridgeState()
+        }
+    }
 
     fun start(
         host: String,
@@ -101,15 +195,15 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(dat = "CONNECTING") }
 
                 viewModelScope.launch {
-                    created.errors.collect { error ->
-                        _state.update { it.copy(error = error.description) }
+                    created.errors.collect { datError ->
+                        _state.update { it.copy(error = datError.description) }
                     }
                 }
 
                 viewModelScope.launch {
-                    created.state.collect { state ->
-                        _state.update { it.copy(dat = state.toString()) }
-                        if (state == DeviceSessionState.STARTED && camera == null) {
+                    created.state.collect { sessionState ->
+                        _state.update { it.copy(dat = sessionState.toString()) }
+                        if (sessionState == DeviceSessionState.STARTED && camera == null) {
                             attachCamera(created)
                         }
                     }
@@ -117,11 +211,11 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
                 created.start()
             },
-            onFailure = { error, _ ->
+            onFailure = { datError, _ ->
                 sender.close()
                 _state.update {
                     it.copy(
-                        error = error.description,
+                        error = datError.description,
                         srt = "ERROR",
                         live = false,
                     )
@@ -150,8 +244,8 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 viewModelScope.launch {
-                    addedCamera.stream.errorStream.collect { error ->
-                        _state.update { it.copy(error = error.description) }
+                    addedCamera.stream.errorStream.collect { datError ->
+                        _state.update { it.copy(error = datError.description) }
                     }
                 }
 
@@ -184,18 +278,18 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 viewModelScope.launch {
-                    addedCamera.stream.start().onFailure { error, _ ->
-                        _state.update { it.copy(error = error.description) }
+                    addedCamera.stream.start().onFailure { datError, _ ->
+                        _state.update { it.copy(error = datError.description) }
                         StreamingService.stop(getApplication())
                     }
                 }
             },
-            onFailure = { error, _ ->
+            onFailure = { datError, _ ->
                 StreamingService.stop(getApplication())
                 sender.close()
                 _state.update {
                     it.copy(
-                        error = error.description,
+                        error = datError.description,
                         srt = "ERROR",
                         live = false,
                     )
@@ -205,6 +299,8 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stop() {
+        val keepMock = _state.value.mockEnabled
+
         frameJob?.cancel()
         frameJob = null
 
@@ -216,11 +312,18 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
         StreamingService.stop(getApplication())
         sender.close()
-        _state.value = BridgeState()
+
+        _state.value = BridgeState(
+            dat = if (keepMock) "MOCK READY" else "IDLE",
+            mockEnabled = keepMock,
+        )
     }
 
     override fun onCleared() {
         stop()
+        if (mockDeviceKit.isEnabled) {
+            mockDeviceKit.disable()
+        }
         super.onCleared()
     }
 }

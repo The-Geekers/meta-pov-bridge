@@ -50,6 +50,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - GitHub Actions debug APK build.
 - Pull-request documentation-sync check.
 - Automatic Compose screenshot workflow, isolated from APK CI.
+- Reproducible FFmpeg SRT listener helper for the VPS smoke test.
 
 ## Validated
 
@@ -75,6 +76,8 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 ## Next milestone
 
 **End-to-end Mock transport test**
+
+Procedure: `docs/SRT_END_TO_END_TEST.md`
 
 1. Prepare an SRT listener on the controlled VPS.
 2. Install the latest green debug APK on an Android phone.

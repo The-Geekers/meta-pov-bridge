@@ -84,6 +84,8 @@ Then:
 
 Initial stability target: **15 minutes continuous video with no app/process crash and a clean receiver stream**.
 
+End-to-end procedure: [`docs/SRT_END_TO_END_TEST.md`](docs/SRT_END_TO_END_TEST.md).
+
 ## Documentation rule
 
 A feature is not considered complete until its documentation/status is updated in the same change.

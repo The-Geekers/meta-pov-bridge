@@ -155,7 +155,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
-                var permissionStatus = PermissionStatus.Denied
+                var permissionStatus: PermissionStatus = PermissionStatus.Denied
                 var permissionError: String? = null
 
                 Wearables.checkPermissionStatus(Permission.CAMERA).fold(

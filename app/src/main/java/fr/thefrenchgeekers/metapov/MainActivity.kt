@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MetaPovTheme(content: @Composable () -> Unit) {
+fun MetaPovTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = darkColorScheme()) {
         Surface(Modifier.fillMaxSize()) { content() }
     }

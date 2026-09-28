@@ -49,6 +49,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - Compose UI preview simulations: Idle, Mock Ready, Streaming and Error.
 - GitHub Actions debug APK build.
 - Pull-request documentation-sync check.
+- Automatic Compose screenshot workflow, isolated from APK CI.
 
 ## Validated
 

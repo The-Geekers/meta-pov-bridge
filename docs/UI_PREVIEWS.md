@@ -28,15 +28,12 @@ The app includes:
 
 ## Automatic PNG screenshots
 
-Android provides official Compose Preview Screenshot Testing that can render preview states into reference PNG files and compare future UI changes with those references.
+The project now uses the official Compose Preview Screenshot Testing Gradle plugin in a separate GitHub Actions workflow.
 
-We intentionally keep automatic PNG generation separate from the APK build because the upstream screenshot-testing feature is still experimental. The transport build must remain the blocking CI path.
+Workflow: `.github/workflows/ui-screenshots.yml`
 
-Planned reference captures:
+Artifact: `MetaPOVBridge-ui-screenshots`
 
-1. idle
-2. mock-ready
-3. streaming
-4. error
+Reference captures: idle, mock-ready, streaming and error.
 
-Once the screenshot workflow is stable, the generated images can be linked directly from the README.
+The screenshot workflow is separate from the APK workflow because the upstream screenshot-testing feature is still experimental. A screenshot-render failure must not prevent the transport APK from being built.

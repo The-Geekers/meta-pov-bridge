@@ -61,10 +61,17 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
-                val perm = Wearables.checkPermissionStatus(Permission.CAMERA)
-                    .getOrElse { throw IllegalStateException(it.description) }
+                var permissionStatus = PermissionStatus.Denied
+                var permissionError: String? = null
 
-                if (perm != PermissionStatus.Granted) {
+                Wearables.checkPermissionStatus(Permission.CAMERA).fold(
+                    onSuccess = { status -> permissionStatus = status },
+                    onFailure = { datError, _ -> permissionError = datError.description },
+                )
+
+                permissionError?.let { message -> error(message) }
+
+                if (permissionStatus != PermissionStatus.Granted) {
                     val requested = requestPermission(Permission.CAMERA)
                     if (requested != PermissionStatus.Granted) {
                         error("Camera permission denied")

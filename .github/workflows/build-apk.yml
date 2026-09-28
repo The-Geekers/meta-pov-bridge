@@ -11,6 +11,28 @@ permissions:
   contents: read
 
 jobs:
+  docs-sync:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require docs with app changes
+        shell: bash
+        run: |
+          CHANGED="$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")"
+          echo "$CHANGED"
+
+          if echo "$CHANGED" | grep -Eq '^(app/|build.gradle.kts$|settings.gradle.kts$|gradle.properties$)'; then
+            if ! echo "$CHANGED" | grep -Eq '^(README\.md$|docs/)'; then
+              echo "::error::Application/build code changed without a README.md or docs/ update."
+              exit 1
+            fi
+          fi
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20

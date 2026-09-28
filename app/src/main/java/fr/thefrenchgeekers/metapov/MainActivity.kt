@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.types.Permission
@@ -46,15 +47,12 @@ import kotlinx.coroutines.sync.withLock
 
 class MainActivity : ComponentActivity() {
     private val vm: BridgeViewModel by viewModels()
-
     private var wearableContinuation: CancellableContinuation<PermissionStatus>? = null
     private val permissionMutex = Mutex()
 
     private val wearablePermission =
         registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
-            wearableContinuation?.resume(
-                result.getOrDefault(PermissionStatus.Denied),
-            )
+            wearableContinuation?.resume(result.getOrDefault(PermissionStatus.Denied))
             wearableContinuation = null
         }
 
@@ -73,25 +71,28 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         androidPermissions.launch(
             arrayOf(
                 Manifest.permission.BLUETOOTH_CONNECT,
                 Manifest.permission.CAMERA,
             ),
         )
-
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(Modifier.fillMaxSize()) {
-                    BridgeScreen(
-                        vm = vm,
-                        request = ::requestWearable,
-                        register = { vm.register(this) },
-                    )
-                }
+            MetaPovTheme {
+                BridgeScreen(
+                    vm = vm,
+                    request = ::requestWearable,
+                    register = { vm.register(this) },
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun MetaPovTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        Surface(Modifier.fillMaxSize()) { content() }
     }
 }
 
@@ -102,17 +103,62 @@ fun BridgeScreen(
     register: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
-
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("9000") }
     var streamId by remember { mutableStateOf("meta01") }
     var passphrase by remember { mutableStateOf("") }
     var latency by remember { mutableStateOf("500") }
 
+    BridgeScreenContent(
+        state = state,
+        host = host,
+        port = port,
+        streamId = streamId,
+        passphrase = passphrase,
+        latency = latency,
+        onHostChange = { host = it },
+        onPortChange = { port = it.filter(Char::isDigit) },
+        onStreamIdChange = { streamId = it },
+        onPassphraseChange = { passphrase = it },
+        onLatencyChange = { latency = it.filter(Char::isDigit) },
+        onEnableMock = vm::enableMockPhoneCamera,
+        onDisableMock = vm::disableMock,
+        onRegister = register,
+        onStart = {
+            vm.start(
+                host = host,
+                port = port.toIntOrNull() ?: 9000,
+                streamId = streamId,
+                pass = passphrase,
+                latency = latency.toIntOrNull() ?: 500,
+                requestPermission = request,
+            )
+        },
+        onStop = vm::stop,
+    )
+}
+
+@Composable
+fun BridgeScreenContent(
+    state: BridgeState,
+    host: String,
+    port: String,
+    streamId: String,
+    passphrase: String,
+    latency: String,
+    onHostChange: (String) -> Unit,
+    onPortChange: (String) -> Unit,
+    onStreamIdChange: (String) -> Unit,
+    onPassphraseChange: (String) -> Unit,
+    onLatencyChange: (String) -> Unit,
+    onEnableMock: () -> Unit,
+    onDisableMock: () -> Unit,
+    onRegister: () -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
     Column(
-        Modifier
-            .fillMaxSize()
-            .padding(22.dp),
+        Modifier.fillMaxSize().padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -124,7 +170,6 @@ fun BridgeScreen(
             "Ray-Ban Meta → DAT HEVC → MPEG-TS → SRT",
             color = MaterialTheme.colorScheme.primary,
         )
-
         HorizontalDivider()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -135,23 +180,16 @@ fun BridgeScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!state.mockEnabled) {
-                OutlinedButton(
-                    onClick = vm::enableMockPhoneCamera,
-                    enabled = !state.live,
-                ) {
+                OutlinedButton(onClick = onEnableMock, enabled = !state.live) {
                     Text("TEST PHONE CAMERA")
                 }
             } else {
-                OutlinedButton(
-                    onClick = vm::disableMock,
-                    enabled = !state.live,
-                ) {
+                OutlinedButton(onClick = onDisableMock, enabled = !state.live) {
                     Text("DISABLE MOCK")
                 }
             }
-
             Button(
-                onClick = register,
+                onClick = onRegister,
                 enabled = !state.live && !state.mockEnabled,
             ) {
                 Text("REGISTER META")
@@ -168,67 +206,58 @@ fun BridgeScreen(
 
         OutlinedTextField(
             value = host,
-            onValueChange = { host = it },
+            onValueChange = onHostChange,
             label = { Text("SRT host / IP") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.live,
+            singleLine = true,
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = port,
-                onValueChange = { port = it.filter(Char::isDigit) },
+                onValueChange = onPortChange,
                 label = { Text("Port") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
                 enabled = !state.live,
+                singleLine = true,
             )
             OutlinedTextField(
                 value = latency,
-                onValueChange = { latency = it.filter(Char::isDigit) },
+                onValueChange = onLatencyChange,
                 label = { Text("Latency ms") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
                 enabled = !state.live,
+                singleLine = true,
             )
         }
 
         OutlinedTextField(
             value = streamId,
-            onValueChange = { streamId = it },
+            onValueChange = onStreamIdChange,
             label = { Text("Stream ID") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.live,
+            singleLine = true,
         )
 
         OutlinedTextField(
             value = passphrase,
-            onValueChange = { passphrase = it },
+            onValueChange = onPassphraseChange,
             label = { Text("Passphrase (optional)") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.live,
+            singleLine = true,
         )
 
         if (!state.live) {
-            Button(
-                onClick = {
-                    vm.start(
-                        host = host,
-                        port = port.toIntOrNull() ?: 9000,
-                        streamId = streamId,
-                        pass = passphrase,
-                        latency = latency.toIntOrNull() ?: 500,
-                        requestPermission = request,
-                    )
-                },
-                enabled = host.isNotBlank(),
-            ) {
+            Button(onClick = onStart, enabled = host.isNotBlank()) {
                 Text("START SRT")
             }
         } else {
-            Button(onClick = vm::stop) {
-                Text("STOP")
-            }
+            Button(onClick = onStop) { Text("STOP") }
         }
 
         Text(
@@ -247,7 +276,6 @@ fun BridgeScreen(
         }
 
         Spacer(Modifier.weight(1f))
-
         Text(
             "V0.1 • HIGH 720×1280 • 30 fps • HEVC passthrough",
             style = MaterialTheme.typography.labelMedium,
@@ -257,8 +285,75 @@ fun BridgeScreen(
 
 @Composable
 private fun Status(key: String, value: String) {
-    AssistChip(
-        onClick = {},
-        label = { Text("$key: $value") },
-    )
+    AssistChip(onClick = {}, label = { Text("$key: $value") })
 }
+
+private val previewNoOp: (String) -> Unit = {}
+
+@Composable
+private fun PreviewScreen(state: BridgeState) {
+    MetaPovTheme {
+        BridgeScreenContent(
+            state = state,
+            host = "stream.example.net",
+            port = "9000",
+            streamId = "meta01",
+            passphrase = "",
+            latency = "500",
+            onHostChange = previewNoOp,
+            onPortChange = previewNoOp,
+            onStreamIdChange = previewNoOp,
+            onPassphraseChange = previewNoOp,
+            onLatencyChange = previewNoOp,
+            onEnableMock = {},
+            onDisableMock = {},
+            onRegister = {},
+            onStart = {},
+            onStop = {},
+        )
+    }
+}
+
+@Preview(name = "Idle", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun IdlePreview() = PreviewScreen(BridgeState())
+
+@Preview(name = "Mock ready", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun MockReadyPreview() =
+    PreviewScreen(
+        BridgeState(
+            dat = "MOCK READY",
+            mockEnabled = true,
+        ),
+    )
+
+@Preview(name = "Streaming", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun StreamingPreview() =
+    PreviewScreen(
+        BridgeState(
+            dat = "STARTED",
+            video = "STREAMING",
+            srt = "CONNECTED",
+            frames = 18_420,
+            bytes = 148_897_792,
+            live = true,
+            mockEnabled = true,
+        ),
+    )
+
+@Preview(name = "Error", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun ErrorPreview() =
+    PreviewScreen(
+        BridgeState(
+            dat = "STARTED",
+            video = "STREAMING",
+            srt = "ERROR",
+            frames = 926,
+            bytes = 7_243_776,
+            error = "SRT connection lost",
+            mockEnabled = true,
+        ),
+    )

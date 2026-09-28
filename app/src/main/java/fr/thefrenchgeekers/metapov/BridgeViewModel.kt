@@ -20,7 +20,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class BridgeState(val dat="IDLE",val video="STOPPED",val srt="DISCONNECTED",val frames:Long=0,val bytes:Long=0,val error:String?=null,val live:Boolean=false)
+data class BridgeState(
+    val dat: String = "IDLE",
+    val video: String = "STOPPED",
+    val srt: String = "DISCONNECTED",
+    val frames: Long = 0,
+    val bytes: Long = 0,
+    val error: String? = null,
+    val live: Boolean = false,
+)
 
 class BridgeViewModel(app:Application):AndroidViewModel(app){
     private val _state=MutableStateFlow(BridgeState()); val state=_state.asStateFlow()

@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.meta.wearable.dat.core.Wearables
@@ -172,10 +173,13 @@ fun BridgeScreenContent(
         )
         HorizontalDivider()
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Status("DAT", state.dat)
-            Status("VIDEO", state.video)
-            Status("SRT", state.srt)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Status("DAT", state.dat, Modifier.weight(1f))
+            Status("VIDEO", state.video, Modifier.weight(1f))
+            Status("SRT", state.srt, Modifier.weight(1f))
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -284,8 +288,26 @@ fun BridgeScreenContent(
 }
 
 @Composable
-private fun Status(key: String, value: String) {
-    AssistChip(onClick = {}, label = { Text("$key: $value") })
+private fun Status(
+    key: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(
+                text = key,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 private val previewNoOp: (String) -> Unit = {}

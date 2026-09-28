@@ -37,3 +37,7 @@ Artifact: `MetaPOVBridge-ui-screenshots`
 Reference captures: idle, mock-ready, streaming and error.
 
 The screenshot workflow is separate from the APK workflow because the upstream screenshot-testing feature is still experimental. A screenshot-render failure must not prevent the transport APK from being built.
+
+## Visual review
+
+The generated captures are also used as a visual review step before they are reused in documentation. The first generated set exposed an overly narrow status chip for long SRT states, so the status row was changed to three equal-width stacked cards (label + value) before publishing screenshots.

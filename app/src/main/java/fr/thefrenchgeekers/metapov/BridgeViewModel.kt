@@ -30,7 +30,7 @@ class BridgeViewModel(app:Application):AndroidViewModel(app){
     init { Wearables.initialize(app) }
     fun register(activity:android.app.Activity)=Wearables.startRegistration(activity)
 
-    fun start(host:String,port:Int,streamId:String,pass:String,latency:Int, requestPermission:suspend(Permission)->PermissionStatus){
+    fun start(host:String, port:Int, streamId:String, pass:String, latency:Int, requestPermission: suspend (Permission) -> PermissionStatus){
         if(_state.value.live)return; cfg=SrtConfig(host,port,streamId,pass,latency)
         viewModelScope.launch {
             try{

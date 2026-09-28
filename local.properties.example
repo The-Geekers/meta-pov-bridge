@@ -1,0 +1,3 @@
+# Copy to ~/.gradle/gradle.properties or pass with -P
+MWDAT_APPLICATION_ID=YOUR_META_APP_ID
+MWDAT_CLIENT_TOKEN=YOUR_META_CLIENT_TOKEN

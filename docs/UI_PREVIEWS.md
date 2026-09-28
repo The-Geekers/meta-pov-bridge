@@ -41,3 +41,14 @@ The screenshot workflow is separate from the APK workflow because the upstream s
 ## Visual review
 
 The generated captures are also used as a visual review step before they are reused in documentation. The first generated set exposed an overly narrow status chip for long SRT states, so the status row was changed to three equal-width stacked cards (label + value) before publishing screenshots.
+
+## Stable documentation copies
+
+On pushes that affect the UI, the screenshot workflow copies the four rendered references to:
+
+- `docs/images/ui/idle.png`
+- `docs/images/ui/mock-ready.png`
+- `docs/images/ui/streaming.png`
+- `docs/images/ui/error.png`
+
+If they changed, GitHub Actions commits those PNG files back to `main`. This keeps the README visuals aligned with the current Compose UI without requiring manual screenshot capture.

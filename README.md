@@ -52,7 +52,12 @@ Preview states are defined directly in `MainActivity.kt`:
 - Streaming
 - Error
 
-This lets us review the interface before using a physical phone. A separate workflow renders PNG references into the `MetaPOVBridge-ui-screenshots` artifact. See [`docs/UI_PREVIEWS.md`](docs/UI_PREVIEWS.md).
+This lets us review the interface before using a physical phone. A separate workflow renders PNG references into the `MetaPOVBridge-ui-screenshots` artifact and publishes stable copies under `docs/images/ui/`. See [`docs/UI_PREVIEWS.md`](docs/UI_PREVIEWS.md).
+
+<p align="center">
+  <img src="docs/images/ui/mock-ready.png" width="300" alt="Meta POV Bridge mock ready UI" />
+  <img src="docs/images/ui/streaming.png" width="300" alt="Meta POV Bridge streaming UI" />
+</p>
 
 ## CI / APK
 

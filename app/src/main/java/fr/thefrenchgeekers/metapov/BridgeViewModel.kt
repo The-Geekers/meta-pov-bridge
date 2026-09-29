@@ -31,6 +31,7 @@ data class BridgeState(
     val dat: String = "IDLE",
     val video: String = "STOPPED",
     val srt: String = "DISCONNECTED",
+    val protocol: String = "SRT",
     val frames: Long = 0,
     val bytes: Long = 0,
     val error: String? = null,
@@ -40,6 +41,12 @@ data class BridgeState(
 )
 
 class BridgeViewModel(app: Application) : AndroidViewModel(app) {
+    private enum class ActiveTransport {
+        NONE,
+        SRT,
+        RTMP,
+    }
+
     private val _state = MutableStateFlow(BridgeState())
     val state = _state.asStateFlow()
 
@@ -47,10 +54,20 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
     private var camera: Camera? = null
     private var frameJob: Job? = null
 
-    private val sender = SrtSender()
+    private val srtSender = SrtSender()
+    private val rtmpSender =
+        RtmpSender { reason ->
+            _state.update {
+                if (it.protocol == "RTMP" && it.live) {
+                    it.copy(srt = "ERROR", error = reason)
+                } else {
+                    it
+                }
+            }
+        }
     private val mux = MpegTsMuxer()
     private val hevcNormalizer = HevcAccessUnitNormalizer()
-    private var cfg = SrtConfig("", 9000)
+    private var activeTransport = ActiveTransport.NONE
 
     private val mockDeviceKit = MockDeviceKit.getInstance(app.applicationContext)
     private var mockGlasses: MockGlasses? = null
@@ -152,7 +169,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun start(
+    fun startSrt(
         host: String,
         port: Int,
         streamId: String,
@@ -161,36 +178,29 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
         requestPermission: suspend (Permission) -> PermissionStatus,
     ) {
         if (_state.value.live) return
-        cfg = SrtConfig(host, port, streamId, pass, latency)
 
         viewModelScope.launch {
             try {
-                var permissionStatus: PermissionStatus = PermissionStatus.Denied
-                var permissionError: String? = null
-
-                Wearables.checkPermissionStatus(Permission.CAMERA).fold(
-                    onSuccess = { status -> permissionStatus = status },
-                    onFailure = { datError, _ -> permissionError = datError.description },
-                )
-
-                permissionError?.let { message -> error(message) }
-
-                if (permissionStatus != PermissionStatus.Granted) {
-                    val requested = requestPermission(Permission.CAMERA)
-                    if (requested != PermissionStatus.Granted) {
-                        error("Camera permission denied")
-                    }
-                }
-
-                mux.reset()
-                hevcNormalizer.reset()
-                sender.connect(cfg)
-                _state.update { it.copy(srt = "CONNECTED", live = true, error = null) }
-                startDat()
-            } catch (t: Throwable) {
-                sender.close()
+                ensureCameraPermission(requestPermission)
+                resetTransportPipeline()
+                srtSender.connect(SrtConfig(host, port, streamId, pass, latency))
+                activeTransport = ActiveTransport.SRT
                 _state.update {
                     it.copy(
+                        protocol = "SRT",
+                        srt = "CONNECTED",
+                        live = true,
+                        error = null,
+                        frames = 0,
+                        bytes = 0,
+                    )
+                }
+                startDat()
+            } catch (t: Throwable) {
+                closeTransports()
+                _state.update {
+                    it.copy(
+                        protocol = "SRT",
                         error = t.message ?: t.toString(),
                         srt = "ERROR",
                         live = false,
@@ -198,6 +208,70 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+    fun startRtmp(
+        url: String,
+        requestPermission: suspend (Permission) -> PermissionStatus,
+    ) {
+        if (_state.value.live) return
+
+        viewModelScope.launch {
+            try {
+                ensureCameraPermission(requestPermission)
+                resetTransportPipeline()
+                rtmpSender.connect(RtmpConfig(url = url))
+                activeTransport = ActiveTransport.RTMP
+                _state.update {
+                    it.copy(
+                        protocol = "RTMP",
+                        srt = "CONNECTED",
+                        live = true,
+                        error = null,
+                        frames = 0,
+                        bytes = 0,
+                    )
+                }
+                startDat()
+            } catch (t: Throwable) {
+                closeTransports()
+                _state.update {
+                    it.copy(
+                        protocol = "RTMP",
+                        error = t.message ?: t.toString(),
+                        srt = "ERROR",
+                        live = false,
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun ensureCameraPermission(
+        requestPermission: suspend (Permission) -> PermissionStatus,
+    ) {
+        var permissionStatus: PermissionStatus = PermissionStatus.Denied
+        var permissionError: String? = null
+
+        Wearables.checkPermissionStatus(Permission.CAMERA).fold(
+            onSuccess = { status -> permissionStatus = status },
+            onFailure = { datError, _ -> permissionError = datError.description },
+        )
+
+        permissionError?.let { message -> error(message) }
+
+        if (permissionStatus != PermissionStatus.Granted) {
+            val requested = requestPermission(Permission.CAMERA)
+            if (requested != PermissionStatus.Granted) {
+                error("Camera permission denied")
+            }
+        }
+    }
+
+    private fun resetTransportPipeline() {
+        closeTransports()
+        mux.reset()
+        hevcNormalizer.reset()
     }
 
     private fun startDat() {
@@ -224,7 +298,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                 created.start()
             },
             onFailure = { datError, _ ->
-                sender.close()
+                closeTransports()
                 _state.update {
                     it.copy(
                         error = datError.description,
@@ -272,21 +346,32 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                         buffer.get(raw)
 
                         val normalized =
-                            hevcNormalizer.normalize(raw, frame.isCodecConfig)
+                            hevcNormalizer.normalize(raw)
                                 ?: return@collect
-                        val ts =
-                            mux.muxHevc(
-                                normalized.data,
-                                frame.presentationTimeUs,
-                                normalized.isKeyFrame,
-                            )
+
                         try {
-                            sender.send(ts)
-                            _state.update {
-                                it.copy(
-                                    frames = it.frames + 1,
-                                    bytes = it.bytes + ts.size,
-                                )
+                            when (activeTransport) {
+                                ActiveTransport.SRT -> {
+                                    val ts =
+                                        mux.muxHevc(
+                                            normalized.srtData,
+                                            frame.presentationTimeUs,
+                                            normalized.isKeyFrame,
+                                        )
+                                    srtSender.send(ts)
+                                    countSent(ts.size)
+                                }
+                                ActiveTransport.RTMP -> {
+                                    normalized.codecConfig?.let(rtmpSender::setVideoInfo)
+                                    val sent =
+                                        rtmpSender.sendVideo(
+                                            normalized.mediaData,
+                                            frame.presentationTimeUs,
+                                            normalized.isKeyFrame,
+                                        )
+                                    if (sent > 0) countSent(sent)
+                                }
+                                ActiveTransport.NONE -> Unit
                             }
                         } catch (t: Throwable) {
                             _state.update {
@@ -310,7 +395,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
             },
             onFailure = { datError, _ ->
                 StreamingService.stop(getApplication())
-                sender.close()
+                closeTransports()
                 _state.update {
                     it.copy(
                         error = datError.description,
@@ -322,8 +407,25 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    private fun countSent(size: Int) {
+        _state.update {
+            it.copy(
+                frames = it.frames + 1,
+                bytes = it.bytes + size,
+            )
+        }
+    }
+
+    private fun closeTransports() {
+        srtSender.close()
+        rtmpSender.close()
+        activeTransport = ActiveTransport.NONE
+    }
+
     fun stop() {
         val keepMock = _state.value.mockEnabled
+        val keepMockSource = _state.value.mockSource
+        val keepProtocol = _state.value.protocol
 
         frameJob?.cancel()
         frameJob = null
@@ -335,14 +437,15 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
         session = null
 
         StreamingService.stop(getApplication())
-        sender.close()
+        closeTransports()
         mux.reset()
         hevcNormalizer.reset()
 
         _state.value = BridgeState(
             dat = if (keepMock) "MOCK READY" else "IDLE",
+            protocol = keepProtocol,
             mockEnabled = keepMock,
-            mockSource = if (keepMock) _state.value.mockSource else "",
+            mockSource = if (keepMock) keepMockSource else "",
         )
     }
 

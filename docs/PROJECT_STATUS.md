@@ -12,8 +12,8 @@ Ray-Ban Meta
 Meta Wearables DAT
      ↓ compressed HEVC
 Android Meta POV Bridge
-     ├─ MPEG-TS mux
-     ├─ SRT caller / LIVE mode
+     ├─ SRT: HEVC → MPEG-TS → SRT LIVE
+     ├─ RTMP: HEVC → Enhanced RTMP (hvc1)
      └─ foreground service + WakeLock
      ↓
 Self-hosted SRT receiver
@@ -43,7 +43,9 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - PAT/PMT are emitted periodically and on keyframes.
 - SRT caller with LIVE transport mode.
 - Configurable host, port, latency, Stream ID and optional passphrase.
-- 1316-byte transport chunks.
+- 1316-byte SRT transport chunks.
+- Enhanced RTMP transport via RootEncoder 2.8.1, with direct HEVC passthrough and no Android video re-encode.
+- RTMP/RTMPS publish URL input and SRT / RTMP selector in the application UI.
 - Android foreground connected-device service.
 - Partial WakeLock.
 - Mock Ray-Ban Meta creation and lifecycle.
@@ -71,6 +73,9 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Not yet validated
 
+- Visible 720×1280 picture in Restreamer from the corrected SRT build.
+- Enhanced RTMP → Restreamer end-to-end picture.
+
 - BlueStacks handset-camera feed: DAT reaches STARTED but the stream currently returns a critical stream error before the first frame; video-file MockDeviceKit mode is being used to isolate the emulator camera layer.
 - Install/start on the intended physical Android phone.
 - Mock phone-camera → DAT → SRT end-to-end transport to the VPS.
@@ -88,6 +93,8 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 **End-to-end Mock transport test**
 
 Procedure: `docs/SRT_END_TO_END_TEST.md`
+
+RTMP procedure: `docs/RTMP_END_TO_END_TEST.md`
 
 1. Prepare an SRT listener on the controlled VPS.
 2. Install the latest green debug APK on an Android phone.

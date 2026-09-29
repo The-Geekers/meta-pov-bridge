@@ -2,7 +2,7 @@
 
 Android proof of concept for a direct, self-hosted POV contribution chain:
 
-**Ray-Ban Meta → Meta Wearables DAT → Android → HEVC → MPEG-TS → SRT → our server / production**
+**Ray-Ban Meta → Meta Wearables DAT → Android → HEVC → SRT or Enhanced RTMP → our server / production**
 
 No third-party streaming cloud is required by the target architecture.
 
@@ -18,6 +18,8 @@ Reference date: **2026-09-29**
 - ✅ Video-only MPEG-TS muxer.
 - ✅ HEVC VPS/SPS/PPS are cached and re-injected on keyframes for receivers joining after stream start.
 - ✅ SRT caller with LIVE transport mode, latency, Stream ID and optional passphrase.
+- ✅ Enhanced RTMP transport implemented with direct HEVC passthrough (`hvc1`), without Android video re-encoding.
+- ✅ SRT / RTMP transport selector in the app UI.
 - ✅ 1316-byte SRT payload chunks for MPEG-TS transport.
 - ✅ Android foreground service and partial WakeLock for background / screen-locked operation.
 - ✅ Meta Mock Device Kit integration.
@@ -44,7 +46,23 @@ Two MockDeviceKit sources are available:
 
 Both modes create simulated Ray-Ban Meta glasses and keep the transport chain unchanged:
 
-`mock source → Mock Ray-Ban → DAT → compressed HEVC → MPEG-TS → SRT`
+`mock source → Mock Ray-Ban → DAT → compressed HEVC → SRT or Enhanced RTMP`
+
+## Transport modes
+
+### SRT
+
+`DAT HEVC → HEVC normalizer → MPEG-TS → SRT LIVE → Restreamer`
+
+The MPEG-TS path caches VPS/SPS/PPS and re-injects them on keyframes so a receiver that attaches after stream start can recover the HEVC decoder configuration.
+
+### Enhanced RTMP
+
+`DAT HEVC → HEVC normalizer → Enhanced RTMP hvc1 → Restreamer`
+
+The RTMP path uses RootEncoder's RTMP transport/packetizer. DAT's already compressed HEVC frames are passed directly; the phone does **not** decode and re-encode the video.
+
+See [`docs/RTMP_END_TO_END_TEST.md`](docs/RTMP_END_TO_END_TEST.md).
 
 ## UI previews
 
@@ -86,7 +104,7 @@ Pull requests also include a documentation-sync check: application/build changes
 
 First software milestone:
 
-`Phone camera → Mock DAT → HEVC → MPEG-TS → SRT → receiver → ffprobe / Restreamer / vMix`
+`Mock → DAT HEVC → SRT or Enhanced RTMP → Restreamer → visible 720×1280 picture`
 
 Then:
 

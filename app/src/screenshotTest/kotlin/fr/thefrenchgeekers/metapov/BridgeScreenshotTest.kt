@@ -22,6 +22,7 @@ private fun ScreenshotState(state: BridgeState) {
             onPassphraseChange = noTextChange,
             onLatencyChange = noTextChange,
             onEnableMock = {},
+            onEnableMockVideo = {},
             onDisableMock = {},
             onRegister = {},
             onStart = {},

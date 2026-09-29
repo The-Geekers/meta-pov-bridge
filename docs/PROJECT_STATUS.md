@@ -45,6 +45,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - Configurable host, port, latency, Stream ID and optional passphrase.
 - 1316-byte SRT transport chunks.
 - Enhanced RTMP transport via RootEncoder 2.8.1, with direct HEVC passthrough and no Android video re-encode.
+- RTMP adds a synchronized silent AAC-LC 44.1 kHz mono compatibility track until real glasses audio is implemented; this satisfies receivers that require a second audio stream.
 - RTMP/RTMPS publish URL input and SRT / RTMP selector in the application UI.
 - Android foreground connected-device service.
 - Partial WakeLock.
@@ -73,7 +74,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Not yet validated
 
-- Enhanced RTMP publish connects and transmits data from the app, but Restreamer's generated process currently exits with `Error opening output files: Invalid argument`; visible picture is not yet validated.
+- Enhanced RTMP publish is confirmed to reach Restreamer as HEVC 720×1280 at 30 fps. The generated Restreamer process failed because it mapped stream `0:1` while the app was video-only. A synchronized silent AAC compatibility track has now been added; the resulting RTMP picture still requires re-validation.
 
 - BlueStacks handset-camera feed: DAT reaches STARTED but the stream currently returns a critical stream error before the first frame; video-file MockDeviceKit mode is being used to isolate the emulator camera layer.
 - Install/start on the intended physical Android phone.

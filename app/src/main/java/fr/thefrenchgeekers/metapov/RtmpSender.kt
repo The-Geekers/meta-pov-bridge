@@ -1,6 +1,7 @@
 package fr.thefrenchgeekers.metapov
 
 import android.media.MediaCodec
+import com.pedro.common.AudioCodec
 import com.pedro.common.ConnectChecker
 import com.pedro.common.VideoCodec
 import com.pedro.rtmp.rtmp.RtmpClient
@@ -21,6 +22,7 @@ class RtmpSender(
     private var client: RtmpClient? = null
     private var sessionToken: Any? = null
     private var videoInfoReady = false
+    private var nextSilentAudioPtsUs: Long? = null
 
     suspend fun connect(config: RtmpConfig) {
         close()
@@ -73,7 +75,9 @@ class RtmpSender(
         val created =
             RtmpClient(checker).apply {
                 setVideoCodec(VideoCodec.H265)
-                setOnlyVideo(true)
+                setAudioCodec(AudioCodec.AAC)
+                setOnlyVideo(false)
+                setAudioInfo(AUDIO_SAMPLE_RATE, false)
                 setVideoResolution(config.width, config.height)
                 setFps(config.fps)
                 setReTries(0)
@@ -81,6 +85,7 @@ class RtmpSender(
 
         client = created
         videoInfoReady = false
+        nextSilentAudioPtsUs = null
         created.connect(url)
 
         try {
@@ -111,6 +116,8 @@ class RtmpSender(
         if (data.isEmpty() || !videoInfoReady) return 0
         val active = client ?: error("RTMP not connected")
 
+        sendSilentAudioUntil(active, presentationTimeUs)
+
         val info =
             MediaCodec.BufferInfo().apply {
                 set(
@@ -125,15 +132,60 @@ class RtmpSender(
         return data.size
     }
 
+    private fun sendSilentAudioUntil(
+        active: RtmpClient,
+        videoPtsUs: Long,
+    ) {
+        var next = nextSilentAudioPtsUs
+
+        if (next == null || videoPtsUs + AUDIO_RESYNC_THRESHOLD_US < next) {
+            next = videoPtsUs
+        }
+
+        while (next <= videoPtsUs) {
+            val info =
+                MediaCodec.BufferInfo().apply {
+                    set(
+                        0,
+                        SILENT_AAC_LC_FRAME.size,
+                        next,
+                        0,
+                    )
+                }
+
+            active.sendAudio(ByteBuffer.wrap(SILENT_AAC_LC_FRAME), info)
+            next += AAC_FRAME_DURATION_US
+        }
+
+        nextSilentAudioPtsUs = next
+    }
+
     fun close() {
         val old = client
         client = null
         sessionToken = null
         videoInfoReady = false
+        nextSilentAudioPtsUs = null
         runCatching { old?.disconnect() }
     }
 
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000L
+
+        private const val AUDIO_SAMPLE_RATE = 44_100
+        private const val AAC_SAMPLES_PER_FRAME = 1024L
+        private const val AAC_FRAME_DURATION_US =
+            AAC_SAMPLES_PER_FRAME * 1_000_000L / AUDIO_SAMPLE_RATE
+        private const val AUDIO_RESYNC_THRESHOLD_US = 1_000_000L
+
+        // One valid AAC-LC mono silence access unit at 44.1 kHz.
+        // RootEncoder emits the AAC sequence header from setAudioInfo().
+        private val SILENT_AAC_LC_FRAME =
+            byteArrayOf(
+                0x01,
+                0x18,
+                0x20,
+                0x07,
+            )
     }
 }

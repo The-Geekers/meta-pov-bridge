@@ -19,6 +19,7 @@ Reference date: **2026-09-29**
 - ✅ HEVC VPS/SPS/PPS are cached and re-injected on keyframes for receivers joining after stream start.
 - ✅ SRT caller with LIVE transport mode, latency, Stream ID and optional passphrase.
 - ✅ Enhanced RTMP transport implemented with direct HEVC passthrough (`hvc1`), without Android video re-encoding.
+- ✅ RTMP includes a silent AAC-LC compatibility track so receivers expecting video + audio can build their downstream process; real glasses audio remains a later milestone.
 - ✅ SRT / RTMP transport selector in the app UI.
 - ✅ 1316-byte SRT payload chunks for MPEG-TS transport.
 - ✅ Android foreground service and partial WakeLock for background / screen-locked operation.
@@ -26,7 +27,7 @@ Reference date: **2026-09-29**
 - ✅ Phone rear camera can simulate Ray-Ban Meta for development without glasses.
 - ✅ Compose UI previews: Idle, Mock Ready, Streaming and Error.
 - ✅ BlueStacks Mock VIDEO FILE → DAT → HEVC → MPEG-TS → SRT → Restreamer is validated with a visible 30 fps picture.
-- ⚠️ Enhanced RTMP publish connects and sends frames, but the current Restreamer process exits with `Error opening output files: Invalid argument`; receiver-side compatibility is still under investigation.
+- ⚠️ Enhanced RTMP is recognized by Restreamer as HEVC 720×1280 / 30 fps. The first receiver process failed only because it expected an audio stream; the app now adds a synchronized silent AAC compatibility track and needs one more end-to-end validation.
 - ⏳ Real Ray-Ban Meta validation.
 - ⏳ Audio transport.
 
@@ -95,7 +96,7 @@ Pull requests also include a documentation-sync check: application/build changes
 
 ## V0.1 limits
 
-- Video only.
+- SRT remains video-only for the current transport validation. RTMP carries HEVC video plus a temporary silent AAC compatibility track.
 - Real-glasses behavior is not yet validated.
 - Long-duration stability and network recovery are not yet qualified.
 - Audio is intentionally deferred until the video transport path is validated.

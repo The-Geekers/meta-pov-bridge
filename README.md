@@ -27,7 +27,7 @@ Reference date: **2026-09-29**
 - ✅ Phone rear camera can simulate Ray-Ban Meta for development without glasses.
 - ✅ Compose UI previews: Idle, Mock Ready, Streaming and Error.
 - ✅ BlueStacks Mock VIDEO FILE → DAT → HEVC → MPEG-TS → SRT → Restreamer is validated with a visible 30 fps picture.
-- ⚠️ Enhanced RTMP is recognized by Restreamer as HEVC 720×1280 / 30 fps. The first receiver process failed only because it expected an audio stream; the app now adds a synchronized silent AAC compatibility track and needs one more end-to-end validation.
+- ✅ Enhanced RTMP is validated end-to-end: Restreamer receives HEVC 720×1280 / 30 fps + AAC 48 kHz mono and successfully republishes it as SRT to OBS.
 - ⏳ Real Ray-Ban Meta validation.
 - ⏳ Audio transport.
 

@@ -72,9 +72,13 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - Meta Mock Device Kit APIs match the current official sample patterns.
 - Foreground-service lifecycle pattern is aligned with Meta's official CameraAccess sample.
 
+## Known receiver UI limitation
+
+- Restreamer web preview remains black for this HEVC passthrough path even though the incoming RTMP is valid and the SRT republish is visible in OBS. Treat this as a preview/browser limitation, not a transport failure.
+
 ## Not yet validated
 
-- Enhanced RTMP publish is confirmed to reach Restreamer as HEVC 720×1280 at 30 fps. The generated Restreamer process failed because it mapped stream `0:1` while the app was video-only. A synchronized silent AAC compatibility track has now been added; the resulting RTMP picture still requires re-validation.
+- Enhanced RTMP is validated end-to-end: Meta POV Bridge publishes HEVC 720×1280 / 30 fps + AAC 48 kHz mono to Restreamer; Restreamer accepts the stream and can republish it as SRT; OBS receives and displays the republished SRT output correctly.
 
 - BlueStacks handset-camera feed: DAT reaches STARTED but the stream currently returns a critical stream error before the first frame; video-file MockDeviceKit mode is being used to isolate the emulator camera layer.
 - Install/start on the intended physical Android phone.
@@ -90,7 +94,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Next milestone
 
-**RTMP receiver compatibility + physical-device validation**
+**Physical-device and real-glasses validation**
 
 Procedure: `docs/SRT_END_TO_END_TEST.md`
 

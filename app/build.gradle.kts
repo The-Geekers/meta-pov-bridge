@@ -18,9 +18,9 @@ android {
         versionName = "0.1.0"
 
         manifestPlaceholders["mwdat_application_id"] =
-            project.findProperty("MWDAT_APPLICATION_ID")?.toString() ?: ""
+            project.findProperty("MWDAT_APPLICATION_ID")?.toString() ?: "0"
         manifestPlaceholders["mwdat_client_token"] =
-            project.findProperty("MWDAT_CLIENT_TOKEN")?.toString() ?: ""
+            project.findProperty("MWDAT_CLIENT_TOKEN")?.toString() ?: "0"
     }
 
     buildFeatures {

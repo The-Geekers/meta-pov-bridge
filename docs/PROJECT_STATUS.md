@@ -35,6 +35,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 - Android app, minSdk 31 / targetSdk 36.
 - Meta Wearables DAT 1.0.0 core, camera and Mock Device Kit.
+- Developer Mode DAT placeholders default to `0`; production credentials can override them through Gradle properties.
 - DAT registration and camera permission flows.
 - HIGH camera stream, 30 fps, compressed video enabled.
 - Video-only MPEG-TS muxer with HEVC stream type 0x24.

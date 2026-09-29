@@ -25,7 +25,8 @@ Reference date: **2026-09-29**
 - ✅ Meta Mock Device Kit integration.
 - ✅ Phone rear camera can simulate Ray-Ban Meta for development without glasses.
 - ✅ Compose UI previews: Idle, Mock Ready, Streaming and Error.
-- ⏳ End-to-end Android Mock → SRT receiver validation.
+- ✅ BlueStacks Mock VIDEO FILE → DAT → HEVC → MPEG-TS → SRT → Restreamer is validated with a visible 30 fps picture.
+- ⚠️ Enhanced RTMP publish connects and sends frames, but the current Restreamer process exits with `Error opening output files: Invalid argument`; receiver-side compatibility is still under investigation.
 - ⏳ Real Ray-Ban Meta validation.
 - ⏳ Audio transport.
 

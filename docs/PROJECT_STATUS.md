@@ -64,7 +64,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - BlueStacks installs and launches the APK.
 - BlueStacks MockDeviceKit initialization reaches `DAT: MOCK READY`.
 - SRT caller successfully handshakes with the existing Restreamer SRT input.
-- SRT transport itself is validated at handshake/data-send level; Restreamer sees HEVC but the first end-to-end picture test exposed a late-join codec-configuration issue (`0x0, HEVC`), now addressed by keyframe CSD re-injection.
+- Corrected SRT path is validated end-to-end in BlueStacks Mock VIDEO FILE → DAT → HEVC → MPEG-TS → SRT → Restreamer: visible picture, 30 fps, and receiver bitrate around 9.8 Mbit/s during the observed test.
 - Project compiles in GitHub Actions.
 - Debug APK artifact is generated.
 - MPEG-TS structure has been sanity-checked with synthetic HEVC and ffprobe.
@@ -73,8 +73,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Not yet validated
 
-- Visible 720×1280 picture in Restreamer from the corrected SRT build.
-- Enhanced RTMP → Restreamer end-to-end picture.
+- Enhanced RTMP publish connects and transmits data from the app, but Restreamer's generated process currently exits with `Error opening output files: Invalid argument`; visible picture is not yet validated.
 
 - BlueStacks handset-camera feed: DAT reaches STARTED but the stream currently returns a critical stream error before the first frame; video-file MockDeviceKit mode is being used to isolate the emulator camera layer.
 - Install/start on the intended physical Android phone.
@@ -90,7 +89,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Next milestone
 
-**End-to-end Mock transport test**
+**RTMP receiver compatibility + physical-device validation**
 
 Procedure: `docs/SRT_END_TO_END_TEST.md`
 

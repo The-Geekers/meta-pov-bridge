@@ -56,4 +56,6 @@ dependencies {
 
     implementation("io.github.thibaultbee.srtdroid:srtdroid-core:1.9.5")
     implementation("io.github.thibaultbee.srtdroid:srtdroid-ktx:1.9.5")
+
+    implementation("com.github.pedroSG94.RootEncoder:rtmp:2.8.1")
 }

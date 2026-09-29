@@ -13,6 +13,7 @@ Reference date: **2026-09-28**
 - ✅ Android project builds in GitHub Actions.
 - ✅ Debug APK is produced as the `MetaPOVBridge-debug` artifact.
 - ✅ Meta Wearables DAT `1.0.0`.
+- ✅ Developer Mode credentials default to `0`, as documented by Meta; production credentials can be supplied through Gradle properties.
 - ✅ Compressed HEVC camera request: HIGH / 720×1280 / 30 fps.
 - ✅ Video-only MPEG-TS muxer.
 - ✅ SRT caller with LIVE transport mode, latency, Stream ID and optional passphrase.

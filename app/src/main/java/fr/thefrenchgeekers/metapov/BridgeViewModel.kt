@@ -49,6 +49,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val sender = SrtSender()
     private val mux = MpegTsMuxer()
+    private val hevcNormalizer = HevcAccessUnitNormalizer()
     private var cfg = SrtConfig("", 9000)
 
     private val mockDeviceKit = MockDeviceKit.getInstance(app.applicationContext)
@@ -181,6 +182,8 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
 
+                mux.reset()
+                hevcNormalizer.reset()
                 sender.connect(cfg)
                 _state.update { it.copy(srt = "CONNECTED", live = true, error = null) }
                 startDat()
@@ -268,7 +271,15 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                         val raw = ByteArray(buffer.remaining())
                         buffer.get(raw)
 
-                        val ts = mux.muxHevc(raw, frame.presentationTimeUs)
+                        val normalized =
+                            hevcNormalizer.normalize(raw, frame.isCodecConfig)
+                                ?: return@collect
+                        val ts =
+                            mux.muxHevc(
+                                normalized.data,
+                                frame.presentationTimeUs,
+                                normalized.isKeyFrame,
+                            )
                         try {
                             sender.send(ts)
                             _state.update {
@@ -325,6 +336,8 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
         StreamingService.stop(getApplication())
         sender.close()
+        mux.reset()
+        hevcNormalizer.reset()
 
         _state.value = BridgeState(
             dat = if (keepMock) "MOCK READY" else "IDLE",

@@ -12,10 +12,23 @@ class MpegTsMuxer {
     private val pmtPid = 0x1000
     private val videoPid = 0x0100
 
-    fun muxHevc(accessUnit: ByteArray, ptsUs: Long): ByteArray {
+    fun reset() {
+        patCc = 0
+        pmtCc = 0
+        videoCc = 0
+        frames = 0
+    }
+
+    fun muxHevc(
+        accessUnit: ByteArray,
+        ptsUs: Long,
+        isKeyFrame: Boolean = false,
+    ): ByteArray {
         val out = ByteArrayOutputStream()
 
-        if (frames++ % 30 == 0) {
+        val emitTables = frames % 30 == 0 || isKeyFrame
+        frames++
+        if (emitTables) {
             out.write(sectionPacket(0, patSection(), patCc++ and 0x0F))
             out.write(sectionPacket(pmtPid, pmtSection(), pmtCc++ and 0x0F))
         }
@@ -32,11 +45,16 @@ class MpegTsMuxer {
             write(accessUnit)
         }.toByteArray()
 
-        packetizePes(out, pes, pts90)
+        packetizePes(out, pes, pts90, isKeyFrame)
         return out.toByteArray()
     }
 
-    private fun packetizePes(out: ByteArrayOutputStream, pes: ByteArray, pcr90: Long) {
+    private fun packetizePes(
+        out: ByteArrayOutputStream,
+        pes: ByteArray,
+        pcr90: Long,
+        isKeyFrame: Boolean,
+    ) {
         var offset = 0
         var first = true
 
@@ -60,7 +78,10 @@ class MpegTsMuxer {
                 packet[pos++] = (adaptationLength - 1).toByte()
 
                 if (adaptationLength > 1) {
-                    packet[pos++] = (if (wantPcr) 0x10 else 0x00).toByte()
+                    val flags =
+                        (if (wantPcr) 0x10 else 0x00) or
+                            (if (first && isKeyFrame) 0x40 else 0x00)
+                    packet[pos++] = flags.toByte()
 
                     if (wantPcr) {
                         writePcr(packet, pos, pcr90)

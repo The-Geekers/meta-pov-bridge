@@ -1,6 +1,6 @@
 # Project Status
 
-Last synchronized with code: **2026-09-28**
+Last synchronized with code: **2026-09-29**
 
 This file is the operational source of truth for Meta POV Bridge.
 
@@ -39,6 +39,8 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - DAT registration and camera permission flows.
 - HIGH camera stream, 30 fps, compressed video enabled.
 - Video-only MPEG-TS muxer with HEVC stream type 0x24.
+- HEVC VPS/SPS/PPS are cached and re-injected on keyframes so late-joining receivers can recover codec dimensions/configuration.
+- PAT/PMT are emitted periodically and on keyframes.
 - SRT caller with LIVE transport mode.
 - Configurable host, port, latency, Stream ID and optional passphrase.
 - 1316-byte transport chunks.
@@ -60,6 +62,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - BlueStacks installs and launches the APK.
 - BlueStacks MockDeviceKit initialization reaches `DAT: MOCK READY`.
 - SRT caller successfully handshakes with the existing Restreamer SRT input.
+- SRT transport itself is validated at handshake/data-send level; Restreamer sees HEVC but the first end-to-end picture test exposed a late-join codec-configuration issue (`0x0, HEVC`), now addressed by keyframe CSD re-injection.
 - Project compiles in GitHub Actions.
 - Debug APK artifact is generated.
 - MPEG-TS structure has been sanity-checked with synthetic HEVC and ffprobe.

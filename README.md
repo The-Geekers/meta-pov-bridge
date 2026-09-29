@@ -8,7 +8,7 @@ No third-party streaming cloud is required by the target architecture.
 
 ## Current status
 
-Reference date: **2026-09-28**
+Reference date: **2026-09-29**
 
 - ✅ Android project builds in GitHub Actions.
 - ✅ Debug APK is produced as the `MetaPOVBridge-debug` artifact.
@@ -16,6 +16,7 @@ Reference date: **2026-09-28**
 - ✅ Developer Mode credentials default to `0`, as documented by Meta; production credentials can be supplied through Gradle properties.
 - ✅ Compressed HEVC camera request: HIGH / 720×1280 / 30 fps.
 - ✅ Video-only MPEG-TS muxer.
+- ✅ HEVC VPS/SPS/PPS are cached and re-injected on keyframes for receivers joining after stream start.
 - ✅ SRT caller with LIVE transport mode, latency, Stream ID and optional passphrase.
 - ✅ 1316-byte SRT payload chunks for MPEG-TS transport.
 - ✅ Android foreground service and partial WakeLock for background / screen-locked operation.

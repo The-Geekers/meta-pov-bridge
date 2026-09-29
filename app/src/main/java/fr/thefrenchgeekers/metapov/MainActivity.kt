@@ -60,6 +60,11 @@ class MainActivity : ComponentActivity() {
     private val androidPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
+    private val mockVideoPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let(vm::enableMockVideoFile)
+        }
+
     private suspend fun requestWearable(permission: Permission): PermissionStatus {
         return permissionMutex.withLock {
             suspendCancellableCoroutine { continuation ->
@@ -84,6 +89,7 @@ class MainActivity : ComponentActivity() {
                     vm = vm,
                     request = ::requestWearable,
                     register = { vm.register(this) },
+                    pickMockVideo = { mockVideoPicker.launch(arrayOf("video/*")) },
                 )
             }
         }
@@ -102,6 +108,7 @@ fun BridgeScreen(
     vm: BridgeViewModel,
     request: suspend (Permission) -> PermissionStatus,
     register: () -> Unit,
+    pickMockVideo: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
     var host by remember { mutableStateOf("") }
@@ -123,6 +130,7 @@ fun BridgeScreen(
         onPassphraseChange = { passphrase = it },
         onLatencyChange = { latency = it.filter(Char::isDigit) },
         onEnableMock = vm::enableMockPhoneCamera,
+        onEnableMockVideo = pickMockVideo,
         onDisableMock = vm::disableMock,
         onRegister = register,
         onStart = {
@@ -153,6 +161,7 @@ fun BridgeScreenContent(
     onPassphraseChange: (String) -> Unit,
     onLatencyChange: (String) -> Unit,
     onEnableMock: () -> Unit,
+    onEnableMockVideo: () -> Unit,
     onDisableMock: () -> Unit,
     onRegister: () -> Unit,
     onStart: () -> Unit,
@@ -182,27 +191,43 @@ fun BridgeScreenContent(
             Status("SRT", state.srt, Modifier.weight(1f))
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!state.mockEnabled) {
-                OutlinedButton(onClick = onEnableMock, enabled = !state.live) {
-                    Text("TEST PHONE CAMERA")
+        if (!state.mockEnabled) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onEnableMock,
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("PHONE CAMERA")
                 }
-            } else {
+                OutlinedButton(
+                    onClick = onEnableMockVideo,
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("VIDEO FILE")
+                }
+            }
+            Button(onClick = onRegister, enabled = !state.live) {
+                Text("REGISTER META")
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = onDisableMock, enabled = !state.live) {
                     Text("DISABLE MOCK")
                 }
-            }
-            Button(
-                onClick = onRegister,
-                enabled = !state.live && !state.mockEnabled,
-            ) {
-                Text("REGISTER META")
+                Button(onClick = onRegister, enabled = false) {
+                    Text("REGISTER META")
+                }
             }
         }
 
         if (state.mockEnabled) {
             Text(
-                "Mock actif : la caméra arrière du téléphone simule les Ray-Ban Meta.",
+                "Mock actif : ${state.mockSource}.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -328,6 +353,7 @@ private fun PreviewScreen(state: BridgeState) {
             onPassphraseChange = previewNoOp,
             onLatencyChange = previewNoOp,
             onEnableMock = {},
+            onEnableMockVideo = {},
             onDisableMock = {},
             onRegister = {},
             onStart = {},

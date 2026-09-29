@@ -36,11 +36,14 @@ Detailed state: [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 ### Mock / no glasses
 
-`TEST PHONE CAMERA` enables Meta Mock Device Kit, creates simulated Ray-Ban Meta glasses, powers/unfolds/dons them and uses the Android rear camera as the mock glasses feed.
+Two MockDeviceKit sources are available:
 
-The rest of the transport chain is unchanged:
+- `PHONE CAMERA` uses the Android rear camera and is intended for a physical Android phone.
+- `VIDEO FILE` lets the user select an H.264/H.265 file and is the preferred emulator/BlueStacks path because virtual cameras are not always exposed to MockDeviceKit as a usable Android handset camera.
 
-`phone camera → Mock Ray-Ban → DAT → compressed HEVC → MPEG-TS → SRT`
+Both modes create simulated Ray-Ban Meta glasses and keep the transport chain unchanged:
+
+`mock source → Mock Ray-Ban → DAT → compressed HEVC → MPEG-TS → SRT`
 
 ## UI previews
 

@@ -46,6 +46,8 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - Partial WakeLock.
 - Mock Ray-Ban Meta creation and lifecycle.
 - Phone rear-camera feed for mock glasses.
+- Selectable mock video-file feed for emulator/BlueStacks testing.
+- Stream errors include their DAT error identity as well as the human-readable description.
 - UI status and telemetry.
 - Compose UI preview simulations: Idle, Mock Ready, Streaming and Error.
 - GitHub Actions debug APK build.
@@ -55,6 +57,9 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Validated
 
+- BlueStacks installs and launches the APK.
+- BlueStacks MockDeviceKit initialization reaches `DAT: MOCK READY`.
+- SRT caller successfully handshakes with the existing Restreamer SRT input.
 - Project compiles in GitHub Actions.
 - Debug APK artifact is generated.
 - MPEG-TS structure has been sanity-checked with synthetic HEVC and ffprobe.
@@ -63,6 +68,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 
 ## Not yet validated
 
+- BlueStacks handset-camera feed: DAT reaches STARTED but the stream currently returns a critical stream error before the first frame; video-file MockDeviceKit mode is being used to isolate the emulator camera layer.
 - Install/start on the intended physical Android phone.
 - Mock phone-camera → DAT → SRT end-to-end transport to the VPS.
 - Real Ray-Ban Meta camera streaming.

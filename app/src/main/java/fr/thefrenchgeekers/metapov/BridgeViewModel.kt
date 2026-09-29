@@ -1,6 +1,7 @@
 package fr.thefrenchgeekers.metapov
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.meta.wearable.dat.camera.Camera
@@ -18,6 +19,7 @@ import com.meta.wearable.dat.mockdevice.api.GlassesModel
 import com.meta.wearable.dat.mockdevice.api.MockDeviceKitConfig
 import com.meta.wearable.dat.mockdevice.api.MockGlasses
 import com.meta.wearable.dat.mockdevice.api.camera.CameraFacing
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,7 @@ data class BridgeState(
     val error: String? = null,
     val live: Boolean = false,
     val mockEnabled: Boolean = false,
+    val mockSource: String = "",
 )
 
 class BridgeViewModel(app: Application) : AndroidViewModel(app) {
@@ -59,17 +62,28 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
     fun register(activity: android.app.Activity) = Wearables.startRegistration(activity)
 
     fun enableMockPhoneCamera() {
-        if (_state.value.live || mockSetupInProgress) return
-        if (mockGlasses != null) {
-            _state.update {
-                it.copy(
-                    dat = "MOCK READY",
-                    mockEnabled = true,
-                    error = null,
-                )
-            }
-            return
+        enableMock("PHONE CAMERA") { glasses ->
+            glasses.services.camera.setCameraFeed(CameraFacing.BACK)
         }
+    }
+
+    fun enableMockVideoFile(sourceUri: Uri) {
+        enableMock("VIDEO FILE") { glasses ->
+            val app = getApplication<Application>()
+            val cached = File(app.cacheDir, "meta_pov_mock_feed.mp4")
+            app.contentResolver.openInputStream(sourceUri)?.use { input ->
+                cached.outputStream().use { output -> input.copyTo(output) }
+            } ?: error("Unable to read selected video file")
+
+            glasses.services.camera.setCameraFeed(Uri.fromFile(cached))
+        }
+    }
+
+    private fun enableMock(
+        sourceLabel: String,
+        configureFeed: (MockGlasses) -> Unit,
+    ) {
+        if (_state.value.live || mockSetupInProgress) return
 
         mockSetupInProgress = true
         _state.update { it.copy(dat = "MOCK SETUP", error = null) }
@@ -85,38 +99,33 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
 
-                mockDeviceKit.pairGlasses(GlassesModel.RAYBAN_META).fold(
-                    onSuccess = { glasses ->
-                        mockGlasses = glasses
-                        glasses.powerOn()
-                        glasses.unfold()
-                        glasses.don()
-                        glasses.services.camera.setCameraFeed(CameraFacing.BACK)
+                val glasses =
+                    mockGlasses
+                        ?: mockDeviceKit
+                            .pairGlasses(GlassesModel.RAYBAN_META)
+                            .getOrThrow()
+                            .also { mockGlasses = it }
 
-                        _state.update {
-                            it.copy(
-                                dat = "MOCK READY",
-                                mockEnabled = true,
-                                error = null,
-                            )
-                        }
-                    },
-                    onFailure = { datError, _ ->
-                        _state.update {
-                            it.copy(
-                                dat = "MOCK ERROR",
-                                error = datError.description,
-                                mockEnabled = false,
-                            )
-                        }
-                    },
-                )
+                glasses.powerOn()
+                glasses.unfold()
+                glasses.don()
+                configureFeed(glasses)
+
+                _state.update {
+                    it.copy(
+                        dat = "MOCK READY",
+                        mockEnabled = true,
+                        mockSource = sourceLabel,
+                        error = null,
+                    )
+                }
             } catch (t: Throwable) {
                 _state.update {
                     it.copy(
                         dat = "MOCK ERROR",
                         error = t.message ?: t.toString(),
                         mockEnabled = false,
+                        mockSource = "",
                     )
                 }
             } finally {
@@ -245,7 +254,9 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
                 viewModelScope.launch {
                     addedCamera.stream.errorStream.collect { datError ->
-                        _state.update { it.copy(error = datError.description) }
+                        _state.update {
+                            it.copy(error = "STREAM $datError: ${datError.description}")
+                        }
                     }
                 }
 
@@ -279,7 +290,9 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
 
                 viewModelScope.launch {
                     addedCamera.stream.start().onFailure { datError, _ ->
-                        _state.update { it.copy(error = datError.description) }
+                        _state.update {
+                            it.copy(error = "STREAM START $datError: ${datError.description}")
+                        }
                         StreamingService.stop(getApplication())
                     }
                 }
@@ -316,6 +329,7 @@ class BridgeViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = BridgeState(
             dat = if (keepMock) "MOCK READY" else "IDLE",
             mockEnabled = keepMock,
+            mockSource = if (keepMock) _state.value.mockSource else "",
         )
     }
 

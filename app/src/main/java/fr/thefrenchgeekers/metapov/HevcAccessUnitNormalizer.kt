@@ -1,53 +1,62 @@
 package fr.thefrenchgeekers.metapov
 
+import java.io.ByteArrayOutputStream
+
+data class HevcCodecConfig(
+    val vps: ByteArray,
+    val sps: ByteArray,
+    val pps: ByteArray,
+)
+
 data class NormalizedHevcAccessUnit(
-    val data: ByteArray,
+    val srtData: ByteArray,
+    val mediaData: ByteArray,
     val isKeyFrame: Boolean,
+    val codecConfig: HevcCodecConfig?,
 )
 
 class HevcAccessUnitNormalizer {
     private val parameterSets = linkedMapOf<Int, ByteArray>()
 
-    fun normalize(data: ByteArray, isCodecConfig: Boolean): NormalizedHevcAccessUnit? {
+    fun normalize(data: ByteArray): NormalizedHevcAccessUnit? {
         if (data.isEmpty()) return null
 
         var isKeyFrame = false
-        var hasVps = false
-        var hasSps = false
-        var hasPps = false
+        var configUpdated = false
+        val media = ByteArrayOutputStream()
 
         forEachNalUnit(data) { start, type, end ->
+            val nal = data.copyOfRange(start, end)
             when (type) {
                 NAL_VPS, NAL_SPS, NAL_PPS -> {
-                    parameterSets[type] = data.copyOfRange(start, end)
-                    when (type) {
-                        NAL_VPS -> hasVps = true
-                        NAL_SPS -> hasSps = true
-                        NAL_PPS -> hasPps = true
-                    }
+                    parameterSets[type] = nal
+                    configUpdated = true
                 }
+                else -> media.write(nal)
             }
             if (type in NAL_IRAP_FIRST..NAL_IRAP_LAST) {
                 isKeyFrame = true
             }
         }
 
-        val completeCsd = completeCodecConfig()
-        val alreadyHasCompleteCsd = hasVps && hasSps && hasPps
+        val mediaData = media.toByteArray()
+        val codecConfig = completeCodecConfig()
+        val changedConfig = if (configUpdated) codecConfig else null
 
-        val normalized =
-            if (isKeyFrame && completeCsd != null && !alreadyHasCompleteCsd) {
-                completeCsd + data
-            } else {
-                data
+        val srtData =
+            when {
+                isKeyFrame && codecConfig != null -> codecConfig.asAnnexB() + mediaData
+                mediaData.isEmpty() && codecConfig != null -> codecConfig.asAnnexB()
+                else -> mediaData
             }
 
-        // Codec-config-only access units are intentionally kept in-band. The cached copy is also
-        // prepended to later keyframes so a receiver that joins after stream start can still parse
-        // the HEVC format (width/height and decoder configuration).
+        if (srtData.isEmpty() && mediaData.isEmpty()) return null
+
         return NormalizedHevcAccessUnit(
-            data = normalized,
+            srtData = srtData,
+            mediaData = mediaData,
             isKeyFrame = isKeyFrame,
+            codecConfig = changedConfig,
         )
     }
 
@@ -55,12 +64,14 @@ class HevcAccessUnitNormalizer {
         parameterSets.clear()
     }
 
-    private fun completeCodecConfig(): ByteArray? {
+    private fun completeCodecConfig(): HevcCodecConfig? {
         val vps = parameterSets[NAL_VPS] ?: return null
         val sps = parameterSets[NAL_SPS] ?: return null
         val pps = parameterSets[NAL_PPS] ?: return null
-        return vps + sps + pps
+        return HevcCodecConfig(vps = vps, sps = sps, pps = pps)
     }
+
+    private fun HevcCodecConfig.asAnnexB(): ByteArray = vps + sps + pps
 
     private inline fun forEachNalUnit(
         data: ByteArray,

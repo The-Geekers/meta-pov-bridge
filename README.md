@@ -19,7 +19,7 @@ Reference date: **2026-09-29**
 - ✅ HEVC VPS/SPS/PPS are cached and re-injected on keyframes for receivers joining after stream start.
 - ✅ SRT caller with LIVE transport mode, latency, Stream ID and optional passphrase.
 - ✅ Enhanced RTMP transport implemented with direct HEVC passthrough (`hvc1`), without Android video re-encoding.
-- ✅ RTMP includes a silent AAC-LC compatibility track so receivers expecting video + audio can build their downstream process; real glasses audio remains a later milestone.
+- ✅ RTMP includes a silent AAC-LC 48 kHz mono compatibility track so receivers expecting video + audio can build their downstream process; real glasses audio remains a later milestone.
 - ✅ SRT / RTMP transport selector in the app UI.
 - ✅ 1316-byte SRT payload chunks for MPEG-TS transport.
 - ✅ Android foreground service and partial WakeLock for background / screen-locked operation.

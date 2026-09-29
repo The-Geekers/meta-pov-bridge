@@ -45,7 +45,7 @@ same DAT → HEVC → MPEG-TS → SRT pipeline
 - Configurable host, port, latency, Stream ID and optional passphrase.
 - 1316-byte SRT transport chunks.
 - Enhanced RTMP transport via RootEncoder 2.8.1, with direct HEVC passthrough and no Android video re-encode.
-- RTMP adds a synchronized silent AAC-LC 44.1 kHz mono compatibility track until real glasses audio is implemented; this satisfies receivers that require a second audio stream.
+- RTMP adds a synchronized silent AAC-LC 48 kHz mono compatibility track until real glasses audio is implemented; this satisfies receivers that require a second audio stream.
 - RTMP/RTMPS publish URL input and SRT / RTMP selector in the application UI.
 - Android foreground connected-device service.
 - Partial WakeLock.

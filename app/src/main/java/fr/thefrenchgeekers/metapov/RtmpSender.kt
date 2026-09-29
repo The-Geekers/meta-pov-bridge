@@ -172,13 +172,13 @@ class RtmpSender(
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000L
 
-        private const val AUDIO_SAMPLE_RATE = 44_100
+        private const val AUDIO_SAMPLE_RATE = 48_000
         private const val AAC_SAMPLES_PER_FRAME = 1024L
         private const val AAC_FRAME_DURATION_US =
             AAC_SAMPLES_PER_FRAME * 1_000_000L / AUDIO_SAMPLE_RATE
         private const val AUDIO_RESYNC_THRESHOLD_US = 1_000_000L
 
-        // One valid AAC-LC mono silence access unit at 44.1 kHz.
+        // One valid AAC-LC mono silence access unit used with a 48 kHz AudioSpecificConfig.
         // RootEncoder emits the AAC sequence header from setAudioInfo().
         private val SILENT_AAC_LC_FRAME =
             byteArrayOf(

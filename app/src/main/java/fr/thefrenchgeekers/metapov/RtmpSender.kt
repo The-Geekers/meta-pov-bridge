@@ -57,7 +57,7 @@ class RtmpSender(
 
                 override fun onDisconnect() = Unit
 
-                overrie fun onAuthError() {
+                override fun onAuthError() {
                     if (sessionToken !== token) return
                     val message = "RTMP authentication failed"
                     if (!connected.isCompleted) {

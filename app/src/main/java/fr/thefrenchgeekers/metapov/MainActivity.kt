@@ -46,6 +46,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+enum class TransportMode {
+    SRT,
+    RTMP,
+}
+
 class MainActivity : ComponentActivity() {
     private val vm: BridgeViewModel by viewModels()
     private var wearableContinuation: CancellableContinuation<PermissionStatus>? = null
@@ -111,37 +116,51 @@ fun BridgeScreen(
     pickMockVideo: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
+    var transportMode by remember { mutableStateOf(TransportMode.SRT) }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("9000") }
     var streamId by remember { mutableStateOf("meta01") }
     var passphrase by remember { mutableStateOf("") }
     var latency by remember { mutableStateOf("500") }
+    var rtmpUrl by remember { mutableStateOf("") }
 
     BridgeScreenContent(
         state = state,
+        transportMode = transportMode,
         host = host,
         port = port,
         streamId = streamId,
         passphrase = passphrase,
         latency = latency,
+        rtmpUrl = rtmpUrl,
+        onTransportModeChange = { transportMode = it },
         onHostChange = { host = it },
         onPortChange = { port = it.filter(Char::isDigit) },
         onStreamIdChange = { streamId = it },
         onPassphraseChange = { passphrase = it },
         onLatencyChange = { latency = it.filter(Char::isDigit) },
+        onRtmpUrlChange = { rtmpUrl = it },
         onEnableMock = vm::enableMockPhoneCamera,
         onEnableMockVideo = pickMockVideo,
         onDisableMock = vm::disableMock,
         onRegister = register,
         onStart = {
-            vm.start(
-                host = host,
-                port = port.toIntOrNull() ?: 9000,
-                streamId = streamId,
-                pass = passphrase,
-                latency = latency.toIntOrNull() ?: 500,
-                requestPermission = request,
-            )
+            when (transportMode) {
+                TransportMode.SRT ->
+                    vm.startSrt(
+                        host = host,
+                        port = port.toIntOrNull() ?: 9000,
+                        streamId = streamId,
+                        pass = passphrase,
+                        latency = latency.toIntOrNull() ?: 500,
+                        requestPermission = request,
+                    )
+                TransportMode.RTMP ->
+                    vm.startRtmp(
+                        url = rtmpUrl,
+                        requestPermission = request,
+                    )
+            }
         },
         onStop = vm::stop,
     )
@@ -150,16 +169,20 @@ fun BridgeScreen(
 @Composable
 fun BridgeScreenContent(
     state: BridgeState,
+    transportMode: TransportMode,
     host: String,
     port: String,
     streamId: String,
     passphrase: String,
     latency: String,
+    rtmpUrl: String,
+    onTransportModeChange: (TransportMode) -> Unit,
     onHostChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
     onStreamIdChange: (String) -> Unit,
     onPassphraseChange: (String) -> Unit,
     onLatencyChange: (String) -> Unit,
+    onRtmpUrlChange: (String) -> Unit,
     onEnableMock: () -> Unit,
     onEnableMockVideo: () -> Unit,
     onDisableMock: () -> Unit,
@@ -177,7 +200,7 @@ fun BridgeScreenContent(
             fontWeight = FontWeight.Black,
         )
         Text(
-            "Ray-Ban Meta → DAT HEVC → MPEG-TS → SRT",
+            "Ray-Ban Meta → DAT HEVC → SRT / Enhanced RTMP",
             color = MaterialTheme.colorScheme.primary,
         )
         HorizontalDivider()
@@ -188,7 +211,7 @@ fun BridgeScreenContent(
         ) {
             Status("DAT", state.dat, Modifier.weight(1f))
             Status("VIDEO", state.video, Modifier.weight(1f))
-            Status("SRT", state.srt, Modifier.weight(1f))
+            Status(state.protocol, state.srt, Modifier.weight(1f))
         }
 
         if (!state.mockEnabled) {
@@ -233,7 +256,37 @@ fun BridgeScreenContent(
             )
         }
 
-        OutlinedTextField(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (transportMode == TransportMode.SRT) {
+                Button(
+                    onClick = { onTransportModeChange(TransportMode.SRT) },
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) { Text("SRT") }
+                OutlinedButton(
+                    onClick = { onTransportModeChange(TransportMode.RTMP) },
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) { Text("RTMP") }
+            } else {
+                OutlinedButton(
+                    onClick = { onTransportModeChange(TransportMode.SRT) },
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) { Text("SRT") }
+                Button(
+                    onClick = { onTransportModeChange(TransportMode.RTMP) },
+                    enabled = !state.live,
+                    modifier = Modifier.weight(1f),
+                ) { Text("RTMP") }
+            }
+        }
+
+        if (transportMode == TransportMode.SRT) {
+            OutlinedTextField(
             value = host,
             onValueChange = onHostChange,
             label = { Text("SRT host / IP") },
@@ -273,17 +326,40 @@ fun BridgeScreenContent(
         )
 
         OutlinedTextField(
-            value = passphrase,
-            onValueChange = onPassphraseChange,
-            label = { Text("Passphrase (optional)") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.live,
-            singleLine = true,
-        )
+                value = passphrase,
+                onValueChange = onPassphraseChange,
+                label = { Text("Passphrase (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.live,
+                singleLine = true,
+            )
+        } else {
+            OutlinedTextField(
+                value = rtmpUrl,
+                onValueChange = onRtmpUrlChange,
+                label = { Text("RTMP / RTMPS publish URL") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.live,
+                singleLine = true,
+            )
+            Text(
+                "HEVC passthrough via Enhanced RTMP (hvc1) — no video re-encode.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        val canStart =
+            when (transportMode) {
+                TransportMode.SRT -> host.isNotBlank()
+                TransportMode.RTMP ->
+                    rtmpUrl.trim().startsWith("rtmp://") ||
+                        rtmpUrl.trim().startsWith("rtmps://")
+            }
 
         if (!state.live) {
-            Button(onClick = onStart, enabled = host.isNotBlank()) {
-                Text("START SRT")
+            Button(onClick = onStart, enabled = canStart) {
+                Text("START ${transportMode.name}")
             }
         } else {
             Button(onClick = onStop) { Text("STOP") }
@@ -338,20 +414,27 @@ private fun Status(
 private val previewNoOp: (String) -> Unit = {}
 
 @Composable
-private fun PreviewScreen(state: BridgeState) {
+private fun PreviewScreen(
+    state: BridgeState,
+    mode: TransportMode = TransportMode.SRT,
+) {
     MetaPovTheme {
         BridgeScreenContent(
             state = state,
+            transportMode = mode,
             host = "stream.example.net",
             port = "9000",
             streamId = "meta01",
             passphrase = "",
             latency = "500",
+            rtmpUrl = "rtmp://stream.example.net/live/meta01",
+            onTransportModeChange = {},
             onHostChange = previewNoOp,
             onPortChange = previewNoOp,
             onStreamIdChange = previewNoOp,
             onPassphraseChange = previewNoOp,
             onLatencyChange = previewNoOp,
+            onRtmpUrlChange = previewNoOp,
             onEnableMock = {},
             onEnableMockVideo = {},
             onDisableMock = {},
@@ -389,6 +472,19 @@ private fun StreamingPreview() =
             live = true,
             mockEnabled = true,
         ),
+    )
+
+@Preview(name = "RTMP ready", showBackground = true, widthDp = 412, heightDp = 915)
+@Composable
+private fun RtmpReadyPreview() =
+    PreviewScreen(
+        state = BridgeState(
+            dat = "MOCK READY",
+            protocol = "RTMP",
+            mockEnabled = true,
+            mockSource = "VIDEO FILE",
+        ),
+        mode = TransportMode.RTMP,
     )
 
 @Preview(name = "Error", showBackground = true, widthDp = 412, heightDp = 915)
